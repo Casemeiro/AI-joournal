@@ -91,50 +91,56 @@ def generate_insights():
     if not OPENROUTER_API_KEY:
         return jsonify({'error': 'OpenRouter API key not configured'}), 500
     
+    
+    # REAL API CODE (disabled while we debug 405 error):
+ 
     try:
         # Call OpenRouter API with Gemini 2.5 Flash
-        # Add verify=False to handle SSL issues, timeout for connection issues
+        api_url = f'{OPENROUTER_BASE_URL}/chat/completions'
+        headers = {
+            'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+            'Referer': 'http://localhost:3000',
+            'X-Title': 'First AI Journal',
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'model': MODEL,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': '''You are a compassionate journaling assistant...'''
+                },
+                {
+                    'role': 'user',
+                    'content': f'Please analyze this journal entry:\n\n{content}'
+                }
+            ],
+            'temperature': 0.7,
+            'max_tokens': 500
+        }
+        
+        print(f'Calling OpenRouter API: {api_url}')
+        print(f'API Key present: {bool(OPENROUTER_API_KEY)}')
+        print(f'Model: {MODEL}')
+        
         response = requests.post(
-            f'{OPENROUTER_BASE_URL}/chat/completions',
-            headers={
-                'Authorization': f'Bearer {OPENROUTER_API_KEY}',
-                'HTTP-Referer': 'http://localhost:3000',  # Your app URL
-                'X-Title': 'First AI Journal',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'model': MODEL,
-                'messages': [
-                    {
-                        'role': 'system',
-                        'content': '''You are a compassionate journaling assistant. Analyze the user's journal entry and provide:
-1. MOOD: One primary emotion/mood (teal, blue, amber, coral, or purple)
-2. THEMES: 2-3 key themes or topics mentioned
-3. REFLECTION: A brief, supportive reflection or insight (2-3 sentences)
-4. PROMPT: A gentle follow-up question for deeper reflection
-
-Format your response as JSON with these exact keys: mood, themes, reflection, prompt'''
-                    },
-                    {
-                        'role': 'user',
-                        'content': f'Please analyze this journal entry:\n\n{content}'
-                    }
-                ],
-                'temperature': 0.7,
-                'max_tokens': 500
-            },
-            timeout=30,  # 30 second timeout
-            verify=False  # Disable SSL verification (for development)
+            api_url,
+            headers=headers,
+            json=payload,
+            timeout=30,
+            verify=True  # Try with proper SSL verification
         )
         
         if response.status_code != 200:
             error_text = response.text
             print(f'OpenRouter API error: {response.status_code}')
-            print(f'Response: {error_text}')
+            print(f'Response body: {error_text}')
+            print(f'Response headers: {response.headers}')
             
-            # Check if it's an auth error
             if response.status_code == 401:
                 return jsonify({'error': 'Invalid API key. Check your OPENROUTER_API_KEY in .env'}), 500
+            elif response.status_code == 405:
+                return jsonify({'error': 'API endpoint error (405). OpenRouter may be blocking requests. Try creating a new API key at https://openrouter.io/keys'}), 500
             elif response.status_code == 429:
                 return jsonify({'error': 'Rate limited. Please wait a moment and try again.'}), 500
             else:
@@ -148,7 +154,6 @@ Format your response as JSON with these exact keys: mood, themes, reflection, pr
         try:
             insights = json.loads(assistant_message)
         except json.JSONDecodeError:
-            # If JSON parsing fails, create a structured response from the text
             insights = {
                 'mood': 'blue',
                 'themes': ['reflection', 'growth'],
@@ -175,13 +180,18 @@ Format your response as JSON with these exact keys: mood, themes, reflection, pr
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
 
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    api_configured = bool(OPENROUTER_API_KEY)
+    api_key = os.getenv('OPENROUTER_API_KEY', '')
+    api_configured = bool(api_key) and len(api_key) > 0
+    api_key_preview = f"{api_key[:10]}...{api_key[-10:]}" if api_key and len(api_key) > 20 else "NOT SET"
+    
     return jsonify({
         'status': 'ok',
         'api_configured': api_configured,
+        'api_key_preview': api_key_preview,
         'model': MODEL
     }), 200
 
