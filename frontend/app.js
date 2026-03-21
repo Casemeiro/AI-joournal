@@ -113,51 +113,42 @@ function renderSkeletons() {
 
 function renderInsights(insights, container = insightsSec) {
   if (!insights) { container.innerHTML = ''; return; }
-  const { mood, summary, actions, themes } = insights;
-  const moodColor = MOOD_COLORS[mood?.color] || MOOD_COLORS.teal;
-  const pct = Math.round(((mood?.score ?? 5) / 10) * 100);
+  const { mood, themes, reflection, prompt } = insights;
+  const moodColor = MOOD_COLORS[mood] || MOOD_COLORS.teal;
 
   container.innerHTML = `
-    <p class="insights-heading">Today's insights</p>
+    <p class="insights-heading">AI Insights (Powered by Gemini 2.5 Flash)</p>
 
     <!-- Mood card -->
     <div class="insight-card">
       <div class="insight-card-header">
-        <span class="insight-tag">Mood</span>
+        <span class="insight-tag">Detected Mood</span>
       </div>
       <div class="mood-row">
-        <span class="mood-label" style="color:${moodColor}">${esc(mood?.label ?? '—')}</span>
-        <div class="mood-bar-track">
-          <div class="mood-bar-fill" style="width:${pct}%;background:${moodColor}"></div>
-        </div>
-        <span class="mood-score">${mood?.score ?? '?'}/10</span>
+        <span class="mood-dot" style="background:${moodColor};width:16px;height:16px;border-radius:50%;display:inline-block;margin-right:8px;"></span>
+        <span class="mood-label" style="color:${moodColor};font-weight:500;">${esc(mood ?? 'neutral')}</span>
       </div>
       ${themes?.length ? `
-        <div class="themes-row">
+        <div class="themes-row" style="margin-top:12px;">
+          <p style="font-size:0.85rem;color:var(--text-3);margin-bottom:8px;">Key themes:</p>
           ${themes.map(t => `<span class="theme-pill">${esc(t)}</span>`).join('')}
         </div>` : ''}
     </div>
 
-    <!-- Summary card -->
+    <!-- Reflection card -->
     <div class="insight-card">
       <div class="insight-card-header">
-        <span class="insight-tag">Summary</span>
+        <span class="insight-tag">Reflection</span>
       </div>
-      <p class="summary-text">${esc(summary ?? '')}</p>
+      <p class="summary-text">${esc(reflection ?? '')}</p>
     </div>
 
-    <!-- Actions card -->
+    <!-- Prompt card -->
     <div class="insight-card">
       <div class="insight-card-header">
-        <span class="insight-tag">Reflections</span>
+        <span class="insight-tag">Thing to Consider</span>
       </div>
-      <div class="action-list">
-        ${(actions ?? []).map(a => `
-          <div class="action-item">
-            <div class="action-dot"></div>
-            <span>${esc(a)}</span>
-          </div>`).join('')}
-      </div>
+      <p class="summary-text" style="font-style:italic;color:var(--text-2);">${esc(prompt ?? '')}</p>
     </div>
   `;
 }
@@ -187,12 +178,12 @@ function renderEntryList(entries) {
     return;
   }
   entryList.innerHTML = entries.map(e => {
-    const moodColor = e.insights?.mood?.color
-      ? MOOD_COLORS[e.insights.mood.color]
+    const moodColor = e.insights?.mood
+      ? MOOD_COLORS[e.insights.mood]
       : '#9E9890';
-    const moodLabel = e.insights?.mood?.label ?? '';
+    const moodLabel = e.insights?.mood ?? '';
     const preview = e.content.slice(0, 80) + (e.content.length > 80 ? '…' : '');
-    const dateStr = formatDate(e.date);
+    const dateStr = formatDate(e.timestamp);
     return `
       <li class="entry-list-item" data-id="${e.id}">
         <div class="entry-list-date">
@@ -218,7 +209,7 @@ function openEntryModal(id, entries) {
   if (!entry) return;
 
   activeEntryId = id;
-  modalDate.textContent = formatDate(entry.date);
+  modalDate.textContent = formatDate(entry.timestamp);
   modalContent.textContent = entry.content;
 
   if (entry.insights) {
@@ -282,12 +273,16 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-function formatDate(iso) {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  });
+function formatDate(isoString) {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
 }
 
 let toastTimer;
