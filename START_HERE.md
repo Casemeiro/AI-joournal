@@ -29,16 +29,16 @@ Paste it somewhere safe for now - you'll use it in a moment.
 
 ## STEP 2: Install Python Dependencies (1 minute)
 
-### 2.1 Open PowerShell/Terminal
-Open Windows PowerShell as administrator.
+### 2.1 Open Command Prompt
+Open Windows Command Prompt.
 
 ### 2.2 Navigate to Project
-```powershell
-cd "C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal"
+```cmd
+cd C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal
 ```
 
 ### 2.3 Install Backend Requirements
-```powershell
+```cmd
 cd backend
 pip install -r requirements.txt
 ```
@@ -71,15 +71,14 @@ C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI jou
 
 ## STEP 4: Start Backend Server (30 seconds)
 
-### 4.1 Open PowerShell Terminal 1
+### 4.1 Open Command Prompt 1
 Make sure you're in the backend folder:
-```powershell
-# You should already be here from Step 2
-cd "C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\backend"
+```cmd
+cd C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\backend
 ```
 
 ### 4.2 Start Flask Server
-```powershell
+```cmd
 python app.py
 ```
 
@@ -100,16 +99,16 @@ Using model: google/gemini-2.5-flash
 ## STEP 5: Start Frontend Server (30 seconds)
 
 ### 5.1 Open PowerShell Terminal 2 (NEW TERMINAL)
-Open a NEW PowerShell window (don't close the first one).
+Open a NEW PoCommand Prompt 2 (NEW WINDOW)
+Open a NEW Command Prompt window (don't close the first one).
 
 ### 5.2 Navigate to Frontend
-```powershell
-cd "C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\frontend"
+```cmd
+cd C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\frontend
 ```
 
 ### 5.3 Start Web Server
-```powershell
-python -m http.server 3000
+```cmdp.server 3000
 ```
 
 ### 5.4 Wait for "Serving" Message
@@ -217,9 +216,9 @@ You'll see:
 
 ## 📋 Quick Reference
 
-### Keep Two Terminals Open
-- **Terminal 1**: Backend (python app.py)
-- **Terminal 2**: Frontend (python -m http.server 3000)
+### Keep Two Windows Open
+- **Window 1**: Backend (python app.py)
+- **Window 2**: Frontend (python -m http.server 3000)
 
 ### URLs You Need
 
@@ -234,13 +233,13 @@ You'll see:
 - That's it! Everything else is pre-configured.
 
 ### Commands You Need
-```powershell
-# Terminal 1 - Backend
-cd "C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\backend"
+```cmd
+REM Window 1 - Backend
+cd C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\backend
 python app.py
 
-# Terminal 2 - Frontend
-cd "C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\frontend"
+REM Window 2 - Frontend
+cd C:\Users\CHIEMELIE\OneDrive\Desktop\PythonClass\casemeiro web class\First AI journal\frontend
 python -m http.server 3000
 ```
 

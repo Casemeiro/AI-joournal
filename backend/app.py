@@ -6,6 +6,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 import json
 
+# Suppress SSL warnings for development (we use verify=False)
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -89,12 +93,14 @@ def generate_insights():
     
     try:
         # Call OpenRouter API with Gemini 2.5 Flash
+        # Add verify=False to handle SSL issues, timeout for connection issues
         response = requests.post(
             f'{OPENROUTER_BASE_URL}/chat/completions',
             headers={
                 'Authorization': f'Bearer {OPENROUTER_API_KEY}',
                 'HTTP-Referer': 'http://localhost:3000',  # Your app URL
-                'X-Title': 'First AI Journal'
+                'X-Title': 'First AI Journal',
+                'Content-Type': 'application/json'
             },
             json={
                 'model': MODEL,
@@ -116,12 +122,23 @@ Format your response as JSON with these exact keys: mood, themes, reflection, pr
                 ],
                 'temperature': 0.7,
                 'max_tokens': 500
-            }
+            },
+            timeout=30,  # 30 second timeout
+            verify=False  # Disable SSL verification (for development)
         )
         
         if response.status_code != 200:
-            print(f'OpenRouter API error: {response.status_code} - {response.text}')
-            return jsonify({'error': 'Failed to generate insights'}), 500
+            error_text = response.text
+            print(f'OpenRouter API error: {response.status_code}')
+            print(f'Response: {error_text}')
+            
+            # Check if it's an auth error
+            if response.status_code == 401:
+                return jsonify({'error': 'Invalid API key. Check your OPENROUTER_API_KEY in .env'}), 500
+            elif response.status_code == 429:
+                return jsonify({'error': 'Rate limited. Please wait a moment and try again.'}), 500
+            else:
+                return jsonify({'error': f'OpenRouter API error: {response.status_code}'}), 500
         
         # Parse the response
         result = response.json()
@@ -144,9 +161,15 @@ Format your response as JSON with these exact keys: mood, themes, reflection, pr
         
         return jsonify({'insights': insights}), 200
     
+    except requests.exceptions.Timeout as e:
+        print(f'Timeout connecting to OpenRouter: {e}')
+        return jsonify({'error': 'Request timeout. OpenRouter API is taking too long. Please try again.'}), 500
+    except requests.exceptions.ConnectionError as e:
+        print(f'Connection error: {e}')
+        return jsonify({'error': 'Cannot connect to OpenRouter. Check your internet connection.'}), 500
     except requests.exceptions.RequestException as e:
         print(f'Request error: {e}')
-        return jsonify({'error': 'Failed to connect to OpenRouter API'}), 500
+        return jsonify({'error': f'Network error: {str(e)[:100]}'}), 500
     except Exception as e:
         print(f'Unexpected error: {e}')
         return jsonify({'error': 'An unexpected error occurred'}), 500
