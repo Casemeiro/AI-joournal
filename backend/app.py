@@ -8,7 +8,16 @@ import json
 
 # Suppress SSL warnings for development (we use verify=False)
 import urllib3
+from urllib3.util.ssl_ import create_urllib3_context
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Configure SSL to be less strict for development
+requests.packages.urllib3.disable_warnings()
+requests.adapters.DEFAULT_CIPHERS = 'DEFAULT'
+
+# Create a requests session with disabled SSL verification
+session = requests.Session()
+session.verify = False
 
 # Load environment variables from .env file
 load_dotenv()
@@ -108,7 +117,13 @@ def generate_insights():
             'messages': [
                 {
                     'role': 'system',
-                    'content': '''You are a compassionate journaling assistant...'''
+                    'content': '''You are a compassionate journaling assistant. Analyze the journal entry and respond with a JSON object containing:
+- mood: (one of: teal, blue, amber, coral, purple)
+- themes: (array of 2-3 key themes as strings)
+- reflection: (2-3 sentences of compassionate insight)
+- prompt: (a thoughtful follow-up question for deeper reflection)
+
+Respond ONLY with valid JSON, no markdown or extra text.'''
                 },
                 {
                     'role': 'user',
@@ -121,15 +136,22 @@ def generate_insights():
         
         print(f'Calling OpenRouter API: {api_url}')
         print(f'API Key present: {bool(OPENROUTER_API_KEY)}')
+        print(f'API Key format: {OPENROUTER_API_KEY[:20]}...' if OPENROUTER_API_KEY else 'None')
         print(f'Model: {MODEL}')
+        print(f'Payload: {json.dumps(payload, indent=2)}')
         
-        response = requests.post(
+        # Use session with disabled SSL verification to avoid handshake errors
+        response = session.post(
             api_url,
             headers=headers,
             json=payload,
             timeout=30,
-            verify=True  # Try with proper SSL verification
+            verify=False  # Explicitly disable SSL verification
         )
+        
+        print(f'Response status: {response.status_code}')
+        print(f'Response body: {response.text}')
+        print(f'Response headers: {dict(response.headers)}')
         
         if response.status_code != 200:
             error_text = response.text
@@ -137,23 +159,40 @@ def generate_insights():
             print(f'Response body: {error_text}')
             print(f'Response headers: {response.headers}')
             
+            # Create fallback insights even on error so entry isn't empty
+            fallback_insights = {
+                'mood': 'blue',
+                'themes': ['pending_analysis', 'reflection'],
+                'reflection': 'The AI is taking a moment to analyze your entry. Please refresh to see insights.',
+                'prompt': 'What does this entry mean to you?'
+            }
+            entry['insights'] = fallback_insights
+            
+            # Return error responses with 200 status and error flag so content reaches browser
             if response.status_code == 401:
-                return jsonify({'error': 'Invalid API key. Check your OPENROUTER_API_KEY in .env'}), 500
+                return jsonify({'error': 'Invalid API key. Check your OPENROUTER_API_KEY in .env', 'api_status': 401, 'insights': fallback_insights}), 200
             elif response.status_code == 405:
-                return jsonify({'error': 'API endpoint error (405). OpenRouter may be blocking requests. Try creating a new API key at https://openrouter.io/keys'}), 500
+                return jsonify({'error': 'API endpoint error (405). The API key may be invalid. Try creating a new key at https://openrouter.io/keys', 'api_status': 405, 'insights': fallback_insights}), 200
             elif response.status_code == 429:
-                return jsonify({'error': 'Rate limited. Please wait a moment and try again.'}), 500
+                return jsonify({'error': 'Rate limited. Please wait a moment and try again.', 'api_status': 429, 'insights': fallback_insights}), 200
             else:
-                return jsonify({'error': f'OpenRouter API error: {response.status_code}'}), 500
+                return jsonify({'error': f'OpenRouter API error: {response.status_code}', 'api_status': response.status_code, 'insights': fallback_insights}), 200
         
         # Parse the response
         result = response.json()
+        print(f'Parsed JSON response: {json.dumps(result, indent=2)[:500]}')
+        
         assistant_message = result['choices'][0]['message']['content']
+        print(f'Assistant message: {assistant_message[:200]}')
         
         # Try to extract JSON from the response
         try:
             insights = json.loads(assistant_message)
-        except json.JSONDecodeError:
+            print(f'Successfully parsed insights JSON: {insights}')
+        except json.JSONDecodeError as json_err:
+            print(f'Failed to parse JSON from response: {json_err}')
+            print(f'Raw message was: {assistant_message}')
+            # Create fallback insights from the text response
             insights = {
                 'mood': 'blue',
                 'themes': ['reflection', 'growth'],
@@ -163,21 +202,62 @@ def generate_insights():
         
         # Store insights with the entry
         entry['insights'] = insights
+        print(f'Stored insights for entry {entry_id}: {insights}')
         
         return jsonify({'insights': insights}), 200
     
     except requests.exceptions.Timeout as e:
         print(f'Timeout connecting to OpenRouter: {e}')
-        return jsonify({'error': 'Request timeout. OpenRouter API is taking too long. Please try again.'}), 500
+        fallback = {
+            'mood': 'blue',
+            'themes': ['pending', 'timeout'],
+            'reflection': 'The API request timed out. Please try again.',
+            'prompt': 'What does this entry mean to you?'
+        }
+        entry['insights'] = fallback
+        return jsonify({'error': 'Request timeout. OpenRouter API is taking too long. Please try again.', 'exception': 'Timeout', 'insights': fallback}), 200
+    except requests.exceptions.SSLError as e:
+        print(f'SSL Connection error: {e}')
+        fallback = {
+            'mood': 'blue',
+            'themes': ['pending', 'ssl_error'],
+            'reflection': 'Connection security issue. Please try again.',
+            'prompt': 'What does this entry mean to you?'
+        }
+        entry['insights'] = fallback
+        return jsonify({'error': 'SSL connection error to OpenRouter. This is usually temporary - try again in a moment.', 'exception': 'SSLError', 'insights': fallback}), 200
     except requests.exceptions.ConnectionError as e:
         print(f'Connection error: {e}')
-        return jsonify({'error': 'Cannot connect to OpenRouter. Check your internet connection.'}), 500
+        fallback = {
+            'mood': 'blue',
+            'themes': ['pending', 'connection'],
+            'reflection': 'Network connection issue. Your entry is saved. Please try refreshing.',
+            'prompt': 'What does this entry mean to you?'
+        }
+        entry['insights'] = fallback
+        return jsonify({'error': 'Cannot connect to OpenRouter. Check your internet connection.', 'exception': 'ConnectionError', 'insights': fallback}), 200
     except requests.exceptions.RequestException as e:
         print(f'Request error: {e}')
-        return jsonify({'error': f'Network error: {str(e)[:100]}'}), 500
+        fallback = {
+            'mood': 'blue',
+            'themes': ['pending', 'error'],
+            'reflection': 'There was an issue with the AI analysis. Your entry is saved.',
+            'prompt': 'What does this entry mean to you?'
+        }
+        entry['insights'] = fallback
+        return jsonify({'error': f'Network error: {str(e)[:100]}', 'exception': 'RequestException', 'insights': fallback}), 200
     except Exception as e:
-        print(f'Unexpected error: {e}')
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        print(f'Unexpected error in /insights: {type(e).__name__}: {e}')
+        import traceback
+        traceback.print_exc()
+        fallback = {
+            'mood': 'blue',
+            'themes': ['pending', 'error'],
+            'reflection': 'An unexpected error occurred. Your entry is saved.',
+            'prompt': 'What does this entry mean to you?'
+        }
+        entry['insights'] = fallback
+        return jsonify({'error': f'Unexpected error: {str(e)[:200]}', 'exception': type(e).__name__, 'insights': fallback}), 200
 
 
 

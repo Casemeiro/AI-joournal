@@ -75,9 +75,21 @@ async function handleSave() {
     renderSkeletons();
 
     // 3. Generate insights
-    const { insights } = await post('/insights', { entry_id: entry.id });
+    const insightsResponse = await post('/insights', { entry_id: entry.id });
+    
+    // 3a. Check if there was an error
+    if (insightsResponse.error) {
+      console.warn('API Error:', insightsResponse.error);
+      showToast(`⚠️ ${insightsResponse.error}`);
+    }
+    
+    // 3b. Get insights (either real or fallback)
+    const insights = insightsResponse.insights;
+    if (!insights) {
+      throw new Error('No insights in response');
+    }
 
-    // 4. Render insights
+    // 4. Render insights (even if there was an error, show fallback)
     renderInsights(insights);
 
     // 5. Refresh sidebar
