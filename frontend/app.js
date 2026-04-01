@@ -1,5 +1,8 @@
 /* ── Config ──────────────────────────────────────────────────── */
-const API = 'http://localhost:8000';
+// The backend API URL can be set at runtime by defining `window.BACKEND_URL`
+// (for example, via an injected script or after deploying your backend).
+// Fallback to localhost for local development.
+const API = (window.BACKEND_URL || window.__BACKEND_URL__ || 'http://localhost:8000');
 
 /* ── DOM refs ────────────────────────────────────────────────── */
 const textarea     = document.getElementById('journal-input');
