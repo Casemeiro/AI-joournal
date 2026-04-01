@@ -16,7 +16,7 @@ print(f"✓ API Key loaded: {API_KEY[:20]}...{API_KEY[-20:]}")
 print()
 
 # Test URL
-url = 'https://openrouter.io/api/v1/chat/completions'
+url = 'https://openrouter.ai/api/v1/chat/completions'
 print(f"Testing URL: {url}")
 print()
 
@@ -26,6 +26,7 @@ headers = {
     'Referer': 'http://localhost:3000',
     'X-Title': 'First AI Journal',
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     'User-Agent': 'PythonTest/1.0'
 }
 
@@ -70,7 +71,7 @@ try:
         headers=headers,
         json=payload,
         timeout=30,
-        verify=False
+        verify=True
     )
     
     print(f"Status Code: {response.status_code}")

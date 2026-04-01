@@ -6,18 +6,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import json
 
-# Suppress SSL warnings for development (we use verify=False)
-import urllib3
-from urllib3.util.ssl_ import create_urllib3_context
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Configure SSL to be less strict for development
-requests.packages.urllib3.disable_warnings()
-requests.adapters.DEFAULT_CIPHERS = 'DEFAULT'
-
-# Create a requests session with disabled SSL verification
+# Create a requests session
 session = requests.Session()
-session.verify = False
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,12 +17,58 @@ CORS(app)  # Enable CORS for frontend requests
 
 # Configuration
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
-OPENROUTER_BASE_URL = 'https://openrouter.io/api/v1'
+OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 MODEL = 'google/gemini-2.5-flash'  # Google's Gemini 2.5 Flash model
 
 # In-memory storage (for demo - replace with database in production)
 entries = {}
 next_id = 1
+
+# Local mood detection function (used as fallback)
+def detect_mood_locally(text):
+    """Detect mood from text using keyword analysis as fallback"""
+    text_lower = text.lower()
+    
+    # Define mood keywords
+    positive_words = ['happy', 'great', 'excited', 'grateful', 'blessed', 'amazing', 'wonderful', 
+                     'love', 'hope', 'joy', 'proud', 'confident', 'energetic', 'passionate',
+                     'accomplish', 'success', 'win', 'achieve', 'beautiful', 'excellent']
+    
+    negative_words = ['sad', 'depressed', 'angry', 'frustrated', 'anxious', 'worried', 
+                     'scared', 'hate', 'terrible', 'awful', 'disaster', 'fail', 'lost',
+                     'overwhelmed', 'stressed', 'exhausted', 'miserable', 'alone']
+    
+    calm_words = ['peaceful', 'calm', 'serene', 'quiet', 'reflect', 'meditate', 'rest',
+                 'relax', 'still', 'silent', 'gentle', 'soft', 'contemplative']
+    
+    energetic_words = ['energetic', 'motivated', 'driven', 'active', 'dynamic', 'inspired',
+                      'enthusiastic', 'vibrant', 'busy', 'rushing', 'intense', 'passionate']
+    
+    confused_words = ['confused', 'uncertain', 'unclear', 'lost', 'mixed', 'conflicted',
+                     'unsure', 'doubt', 'question', 'wonder', 'struggle']
+    
+    # Count occurrences
+    positive_count = sum(1 for word in positive_words if word in text_lower)
+    negative_count = sum(1 for word in negative_words if word in text_lower)
+    calm_count = sum(1 for word in calm_words if word in text_lower)
+    energetic_count = sum(1 for word in energetic_words if word in text_lower)
+    confused_count = sum(1 for word in confused_words if word in text_lower)
+    
+    # Determine mood based on counts
+    if negative_count > positive_count and negative_count > 0:
+        mood = 'coral'  # warm but cautious
+    elif positive_count > negative_count and positive_count > 0:
+        mood = 'teal'   # positive/calm
+    elif energetic_count > calm_count and energetic_count > 0:
+        mood = 'amber'  # energetic/warm
+    elif calm_count > 0:
+        mood = 'purple' # reflective/calm
+    elif confused_count > 0:
+        mood = 'amber'  # processing
+    else:
+        mood = 'teal'   # neutral/baseline
+    
+    return mood
 
 
 @app.route('/entries', methods=['POST'])
@@ -108,6 +144,7 @@ def generate_insights():
         api_url = f'{OPENROUTER_BASE_URL}/chat/completions'
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+            'Accept': 'application/json',
             'Referer': 'http://localhost:3000',
             'X-Title': 'First AI Journal',
             'Content-Type': 'application/json'
@@ -145,8 +182,7 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
             api_url,
             headers=headers,
             json=payload,
-            timeout=30,
-            verify=False  # Explicitly disable SSL verification
+            timeout=30
         )
         
         print(f'Response status: {response.status_code}')
@@ -160,8 +196,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
             print(f'Response headers: {response.headers}')
             
             # Create fallback insights even on error so entry isn't empty
+            detected_mood = detect_mood_locally(content)
             fallback_insights = {
-                'mood': 'blue',
+                'mood': detected_mood,
                 'themes': ['pending_analysis', 'reflection'],
                 'reflection': 'The AI is taking a moment to analyze your entry. Please refresh to see insights.',
                 'prompt': 'What does this entry mean to you?'
@@ -172,7 +209,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
             if response.status_code == 401:
                 return jsonify({'error': 'Invalid API key. Check your OPENROUTER_API_KEY in .env', 'api_status': 401, 'insights': fallback_insights}), 200
             elif response.status_code == 405:
-                return jsonify({'error': 'API endpoint error (405). The API key may be invalid. Try creating a new key at https://openrouter.io/keys', 'api_status': 405, 'insights': fallback_insights}), 200
+                return jsonify({'error': 'API endpoint error (405). The API key may be invalid. Try creating a new key at https://openrouter.ai/keys', 'api_status': 405, 'insights': fallback_insights}), 200
+            elif response.status_code == 402:
+                return jsonify({'error': 'Insufficient OpenRouter credits. Purchase credits at https://openrouter.ai/settings/credits', 'api_status': 402, 'insights': fallback_insights}), 200
             elif response.status_code == 429:
                 return jsonify({'error': 'Rate limited. Please wait a moment and try again.', 'api_status': 429, 'insights': fallback_insights}), 200
             else:
@@ -193,8 +232,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
             print(f'Failed to parse JSON from response: {json_err}')
             print(f'Raw message was: {assistant_message}')
             # Create fallback insights from the text response
+            detected_mood = detect_mood_locally(content)
             insights = {
-                'mood': 'blue',
+                'mood': detected_mood,
                 'themes': ['reflection', 'growth'],
                 'reflection': assistant_message,
                 'prompt': 'What would you like to explore further about this experience?'
@@ -208,8 +248,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
     
     except requests.exceptions.Timeout as e:
         print(f'Timeout connecting to OpenRouter: {e}')
+        detected_mood = detect_mood_locally(content)
         fallback = {
-            'mood': 'blue',
+            'mood': detected_mood,
             'themes': ['pending', 'timeout'],
             'reflection': 'The API request timed out. Please try again.',
             'prompt': 'What does this entry mean to you?'
@@ -218,8 +259,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
         return jsonify({'error': 'Request timeout. OpenRouter API is taking too long. Please try again.', 'exception': 'Timeout', 'insights': fallback}), 200
     except requests.exceptions.SSLError as e:
         print(f'SSL Connection error: {e}')
+        detected_mood = detect_mood_locally(content)
         fallback = {
-            'mood': 'blue',
+            'mood': detected_mood,
             'themes': ['pending', 'ssl_error'],
             'reflection': 'Connection security issue. Please try again.',
             'prompt': 'What does this entry mean to you?'
@@ -228,8 +270,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
         return jsonify({'error': 'SSL connection error to OpenRouter. This is usually temporary - try again in a moment.', 'exception': 'SSLError', 'insights': fallback}), 200
     except requests.exceptions.ConnectionError as e:
         print(f'Connection error: {e}')
+        detected_mood = detect_mood_locally(content)
         fallback = {
-            'mood': 'blue',
+            'mood': detected_mood,
             'themes': ['pending', 'connection'],
             'reflection': 'Network connection issue. Your entry is saved. Please try refreshing.',
             'prompt': 'What does this entry mean to you?'
@@ -238,8 +281,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
         return jsonify({'error': 'Cannot connect to OpenRouter. Check your internet connection.', 'exception': 'ConnectionError', 'insights': fallback}), 200
     except requests.exceptions.RequestException as e:
         print(f'Request error: {e}')
+        detected_mood = detect_mood_locally(content)
         fallback = {
-            'mood': 'blue',
+            'mood': detected_mood,
             'themes': ['pending', 'error'],
             'reflection': 'There was an issue with the AI analysis. Your entry is saved.',
             'prompt': 'What does this entry mean to you?'
@@ -250,8 +294,9 @@ Respond ONLY with valid JSON, no markdown or extra text.'''
         print(f'Unexpected error in /insights: {type(e).__name__}: {e}')
         import traceback
         traceback.print_exc()
+        detected_mood = detect_mood_locally(content)
         fallback = {
-            'mood': 'blue',
+            'mood': detected_mood,
             'themes': ['pending', 'error'],
             'reflection': 'An unexpected error occurred. Your entry is saved.',
             'prompt': 'What does this entry mean to you?'

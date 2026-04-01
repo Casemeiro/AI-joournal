@@ -22,7 +22,7 @@ print("=" * 60)
 
 try:
     response = requests.post(
-        'https://openrouter.io/api/v1/chat/completions',
+        'https://openrouter.ai/api/v1/chat/completions',
         headers={
             'Authorization': f'Bearer {API_KEY}',
             'Referer': 'http://localhost:3000',
@@ -53,7 +53,7 @@ print("=" * 60)
 
 try:
     response = requests.post(
-        'https://openrouter.io/api/v1/chat/completions',
+        'https://openrouter.ai/api/v1/chat/completions',
         headers={
             'Authorization': f'Bearer {API_KEY}',
             'Referer': 'http://localhost:3000',
@@ -84,7 +84,7 @@ print("=" * 60)
 
 try:
     response = requests.get(
-        'https://openrouter.io/api/v1/models',
+        'https://openrouter.ai/api/v1/models',
         headers={
             'Authorization': f'Bearer {API_KEY}',
         },
@@ -114,7 +114,7 @@ print("=" * 60)
 
 try:
     response = requests.post(
-        'https://openrouter.io/api/v1/chat/completions',
+        'https://openrouter.ai/api/v1/chat/completions',
         headers={
             'Authorization': f'Bearer {API_KEY}',
         },
