@@ -1,8 +1,12 @@
 /* ── Config ──────────────────────────────────────────────────── */
 // The backend API URL can be set at runtime by defining `window.BACKEND_URL`
-// (for example, via an injected script or after deploying your backend).
-// Fallback to localhost for local development.
-const API = (window.BACKEND_URL || window.__BACKEND_URL__ || 'http://localhost:8000');
+// or `window.__BACKEND_URL__`.
+// For local development, the default is localhost:8000.
+// For a deployed app with a backend on the same origin, the default is the current origin.
+const DEFAULT_API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : window.location.origin;
+const API = (window.BACKEND_URL || window.__BACKEND_URL__ || DEFAULT_API);
 
 /* ── DOM refs ────────────────────────────────────────────────── */
 const textarea     = document.getElementById('journal-input');
@@ -105,7 +109,12 @@ async function handleSave() {
     showToast('Entry saved ✓');
   } catch (err) {
     insightsSec.innerHTML = '';
-    showToast('Something went wrong. Is the backend running?');
+    const isNetworkError = err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
+    if (isNetworkError && !API.includes('localhost')) {
+      showToast('Backend unreachable. Deploy your backend or configure BACKEND_URL.');
+    } else {
+      showToast('Something went wrong. Is the backend running?');
+    }
     console.error(err);
   } finally {
     saveBtn.disabled = false;
