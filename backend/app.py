@@ -5,6 +5,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import json
+import atexit
 
 # Create a requests session
 session = requests.Session()
@@ -23,6 +24,11 @@ MODEL = 'google/gemini-2.5-flash'  # Google's Gemini 2.5 Flash model
 # In-memory storage (for demo - replace with database in production)
 entries = {}
 next_id = 1
+
+# Clean up the requests session on exit
+@atexit.register
+def cleanup():
+    session.close()
 
 # Local mood detection function (used as fallback)
 def detect_mood_locally(text):
@@ -325,4 +331,6 @@ if __name__ == '__main__':
     print(f'Starting AI Journal Backend...')
     print(f'OpenRouter API Key configured: {bool(OPENROUTER_API_KEY)}')
     print(f'Using model: {MODEL}')
-    app.run(debug=True, port=8000, host='0.0.0.0')
+    port = int(os.environ.get('PORT', 8000))
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(debug=debug, port=port, host='0.0.0.0')
