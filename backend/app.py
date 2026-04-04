@@ -77,6 +77,12 @@ def detect_mood_locally(text):
     return mood
 
 
+@app.route('/', methods=['GET', 'HEAD'])
+def root():
+    """Root endpoint - responds to health checks"""
+    return jsonify({'status': 'AI Journal Backend is running'}), 200
+
+
 @app.route('/entries', methods=['POST'])
 def save_entry():
     """Save a journal entry"""
